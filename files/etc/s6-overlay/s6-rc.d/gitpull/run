@@ -1,0 +1,51 @@
+#!/command/with-contenv bash
+
+GIT_REPO="${GIT_REPO}"
+GIT_BRANCH="${GIT_BRANCH:-main}"
+GIT_INTERVAL="${GIT_INTERVAL:300}"
+
+CLONE_TMP="/tmp/clone/"
+WWW_DIR="/usr/local/apache2/htdocs/"
+
+
+log() {
+  local level="${1}"
+  local msg="${2}"
+  local dt="$(date +"%Y-%m-%d %H:%M:%S")"
+  echo -e "[${dt}] [${level}] ${msg}"
+}
+
+if [ "${GIT_BRANCH}x" = "x" ]; then
+    log ERROR "GIT_BRANCH is not set"
+    exit 1
+fi
+
+if [ -f "${CLONE_TMP}" ]; then
+    rm -rf "${CLONE_TMP}"
+fi
+
+# make sure our file for storing the hash of the last clone
+if [ ! -f "/tmp/cloned_hash" ]; then
+    touch "/tmp/cloned_hash"
+fi
+
+while true; do
+    remote_hash="$(git ls-remote ${GIT_REPO} ${GIT_BRANCH} | awk '{print $1}' 2>/dev/null)"
+    cloned_hash="$(</tmp/cloned_hash)"
+    if [ "${remote_hash}x" != "x" ]; then
+        if [ "${remote_hash}" != "${cloned_hash}" ]; then
+            log INFO "changes detected, updating from ${GIT_REPO}@${GIT_BRANCH}"
+            git clone --depth 1 ${GIT_REPO} ${CLONE_TMP} > /dev/null 2>&1
+
+            if [ $? -eq 0 ]; then
+                log INFO "copying files to ${WWW_DIR}"
+                rsync -ah --cvs-exclude "${CLONE_TMP}" "${WWW_DIR}"
+                (cd "${CLONE_TMP}" && git rev-parse HEAD) > /tmp/cloned_hash
+                rm -rf "${CLONE_TMP}"
+            else
+                log ERROR "git clone failed."
+            fi
+        fi
+    fi
+    sleep ${GIT_INTERVAL}
+done
