@@ -5,7 +5,7 @@ variables:
   BUILD_TAG: $CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA
   DOCKER_TLS_CERTDIR: "/certs"
 
-build-aio:
+build-docker-image:
   services:
     - docker:dind
   script:
